@@ -1,0 +1,6 @@
+{
+  "name": "Universal Embedder",
+  "render_readme": true,
+  "filename": "universal-embedder.js",
+  "homeassistant": "2023.0.0"
+}
