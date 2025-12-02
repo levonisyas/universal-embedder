@@ -1,341 +1,186 @@
-// ============================================================================
-// Universal Embedder for Home Assistant
-// ============================================================================
+import { LitElement, html, css } from 'https://unpkg.com/lit@2.1.0/index.js?module';
 
-class UniversalEmbedder extends HTMLElement {
-    // --------------------------------------------------------------------------
-    // Configuration Setup - DeepSeek AI optimized validation
-    // --------------------------------------------------------------------------
-    setConfig(config) {
-      // Both embed_id AND dashboard are REQUIRED
-      if (!config.embed_id || !config.dashboard) {
-        throw new Error('Universal Embedder requires both embed_id AND dashboard parameters');
-      }
-      
-      // Validate embed_id format: 001-999 (3 digits)
-      const embedIdRegex = /^\d{3}$/;
-      if (!embedIdRegex.test(config.embed_id.toString())) {
-        throw new Error('embed_id must be a 3-digit number (001-999)');
-      }
-      
-      // Store configuration
-      this._config = config;
-      this._hass = null;
-      this._loaded = false;
+class DeepSeekCardEmbedder extends LitElement {
+  static properties = {
+    hass: { type: Object },
+    _config: { type: Object },
+    _cardElement: { type: Object },
+    _loading: { type: Boolean },
+    _error: { type: String }
+  };
+
+  static styles = css`
+    :host {
+      display: block;
     }
-  
-    // --------------------------------------------------------------------------
-    // Home Assistant Integration
-    // --------------------------------------------------------------------------
-    set hass(hass) {
-      this._hass = hass;
-      if (!this._loaded) {
-        this._loadCard();
-      } else if (this._contentElement) {
-        this._contentElement.hass = hass;
-      }
+    .loading, .error {
+      text-align: center;
+      padding: 20px;
     }
-  
-    // --------------------------------------------------------------------------
-    // Main Loading Function - DeepSeek AI optimized performance
-    // --------------------------------------------------------------------------
-    async _loadCard() {
-      // Clean container setup
-      this.style.display = 'block';
-      this.style.width = '100%';
-      this.style.height = '100%';
-      this.style.minHeight = '0';
-      this.style.padding = '0';
-      this.style.margin = '0';
-      this.style.borderRadius = '0';
-  
-      // Loading indicator
-      this.innerHTML = `
-        <div style="padding: 20px; text-align: center; color: var(--primary-color);">
-          <div style="font-style: italic; margin-bottom: 10px;">
-            Universal Embedder initializing...
-          </div>
-          <div style="font-size: 0.9em; color: var(--secondary-text-color);">
-            Searching for card ID: <strong>${this._config.embed_id}</strong>
-          </div>
+    .loading {
+      color: var(--primary-color);
+    }
+    .error {
+      color: var(--error-color);
+    }
+    #card-container {
+      padding: 16px;
+    }
+  `;
+
+  setConfig(config) {
+    if (!config.card_id) {
+      throw new Error('card_id required - Powered by DeepSeek');
+    }
+    this._config = config;
+    this._loading = true;
+    this._error = null;
+    this._cardElement = null;
+  }
+
+  render() {
+    if (this._error) {
+      return html`<ha-card><div class="error">${this._error}</div></ha-card>`;
+    }
+
+    if (this._loading) {
+      return html`<ha-card><div class="loading">DeepSeek Kart Yükleniyor...</div></ha-card>`;
+    }
+
+    return html`
+      <ha-card .header=${this._config.title || 'DeepSeek Embed'}>
+        <div id="card-container">
+          ${this._cardElement ? html`<div>Kart Render Ediliyor...</div>` : html`<div>Kart Hazırlanıyor...</div>`}
         </div>
-      `;
-  
-      try {
-        const cardConfig = await this._findCardByEmbedId();
-        await this._createCardContent(cardConfig);
-        
-      } catch (error) {
-        // User-friendly error messages
-        this.innerHTML = `
-          <div style="color: var(--error-color); padding: 20px; text-align: center;">
-            <div style="font-size: 1.2em; margin-bottom: 10px;">
-              🔍 Embedding Failed
-            </div>
-            <div style="margin-bottom: 15px;">
-              ${error.message}
-            </div>
-            <div style="font-size: 0.9em; color: var(--secondary-text-color);">
-              <strong>Troubleshooting tips:</strong><br>
-              1. Add <code>icon: EMBED#${this._config.embed_id}</code> to your source card<br>
-              2. Verify dashboard name: "${this._config.dashboard}"<br>
-              3. Ensure embed_id is unique (001-999)
-            </div>
-          </div>
-        `;
-      }
+      </ha-card>
+    `;
+  }
+
+  async updated(changedProperties) {
+    if (changedProperties.has('hass') && this.hass && this._loading && !this._error) {
+      await this._loadAndRenderCard();
     }
-  
-    // --------------------------------------------------------------------------
-    // Card Discovery Function - DeepSeek AI enhanced search algorithm
-    // --------------------------------------------------------------------------
-    async _findCardByEmbedId() {
-      const dashboard = this._config.dashboard;
-      const targetId = this._config.embed_id;
-      
-      console.log(`🔍 Universal Embedder: Searching for card #${targetId} in '${dashboard}'`);
-      
-      try {
-        // Fetch dashboard configuration
-        const lovelaceConfig = await this._hass.connection.sendMessagePromise({
-          type: 'lovelace/config',
-          url_path: dashboard === 'lovelace' ? null : dashboard
-        });
-  
-        // Search through all views
-        const searchResult = this._searchCardInViews(lovelaceConfig.views, targetId);
-        
-        if (!searchResult.found) {
-          throw new Error(`Card with embed ID #${targetId} not found in dashboard '${dashboard}'`);
-        }
-  
-        if (searchResult.duplicate) {
-          console.warn(`⚠️ Universal Embedder: Duplicate embed ID #${targetId} found! Using first occurrence.`);
-        }
-  
-        console.log(`✅ Universal Embedder: Successfully located card #${targetId} in ${dashboard}`);
-        
-        // Optional title handling
-        if (this._config.show_title !== true && searchResult.card.title) {
-          delete searchResult.card.title;
-        }
-        
-        return searchResult.card;
-        
-      } catch (err) {
-        if (err.message.includes('Not found')) {
-          throw new Error(`Dashboard '${dashboard}' not found or inaccessible`);
-        }
-        throw new Error(`Search error: ${err.message}`);
-      }
-    }
-  
-    // --------------------------------------------------------------------------
-    // Recursive Card Search - DeepSeek AI pattern matching algorithm
-    // --------------------------------------------------------------------------
-    _searchCardInViews(views, targetId) {
-      let foundCard = null;
-      let duplicateFound = false;
-      
-      const searchRecursive = (cards, path = '') => {
-        if (!cards) return;
-        
-        for (let i = 0; i < cards.length; i++) {
-          const card = cards[i];
-          const cardPath = path ? `${path}/cards/${i}` : `view_${i}`;
-          
-          // Check icon property for EMBED#001 format
-          if (card && typeof card === 'object') {
-            if (card.icon && typeof card.icon === 'string') {
-              const iconMatch = card.icon.match(/^EMBED#(\d{3})$/i);
-              if (iconMatch && iconMatch[1] === targetId) {
-                if (foundCard) {
-                  duplicateFound = true;
-                } else {
-                  foundCard = card;
-                  console.log(`   Found at path: ${cardPath} (via icon: ${card.icon})`);
-                }
-              }
-            }
-            
-            // Recursive search for nested cards
-            if (card.cards && Array.isArray(card.cards)) {
-              searchRecursive(card.cards, `${cardPath}/cards`);
-            }
-            
-            // Support for vertical/horizontal stacks
-            if (card.type && card.type.includes('stack') && card.cards) {
-              searchRecursive(card.cards, `${cardPath}/stack`);
-            }
-          }
-        }
-      };
-      
-      // Process all views
-      views.forEach((view, viewIndex) => {
-        if (view.cards) {
-          searchRecursive(view.cards, `view_${viewIndex}`);
-        }
-      });
-      
-      return {
-        found: !!foundCard,
-        card: foundCard,
-        duplicate: duplicateFound
-      };
-    }
-  
-    // --------------------------------------------------------------------------
-    // Card Content Creation - DeepSeek AI optimized rendering
-    // --------------------------------------------------------------------------
-    async _createCardContent(cardConfig) {
-      const helpers = await window.loadCardHelpers();
-      
-      // Create card element
-      const cardConfigCopy = JSON.parse(JSON.stringify(cardConfig));
-      this._contentElement = await helpers.createCardElement(cardConfigCopy);
-      this._contentElement.hass = this._hass;
-      
-      // Clean container setup
-      this.innerHTML = '';
-      
-      const container = document.createElement('div');
-      container.className = 'universal-embedder-container';
-      container.style.padding = '0';
-      container.style.margin = '0';
-      container.style.height = '100%';
-      
-      // Card wrapper
-      const cardWrapper = document.createElement('ha-card');
-      cardWrapper.style.display = 'flex';
-      cardWrapper.style.flexDirection = 'column';
-      cardWrapper.style.height = '100%';
-      cardWrapper.style.width = '100%';
-      cardWrapper.style.padding = '0';
-      cardWrapper.style.margin = '0';
-      cardWrapper.style.borderRadius = '0';
-      cardWrapper.style.background = 'none';
-      cardWrapper.style.boxShadow = 'none';
-      
-      // Content area with smart scrolling
-      const cardContent = document.createElement('div');
-      cardContent.className = 'card-content';
-      cardContent.style.flex = '1';
-      cardContent.style.minHeight = '0';
-      cardContent.style.display = 'flex';
-      cardContent.style.flexDirection = 'column';
-      cardContent.style.padding = '0';
-      
-      if (this._config.enable_scroll === false) {
-        cardContent.style.overflow = 'visible';
-      } else {
-        cardContent.style.overflowY = 'auto';
-        cardContent.style.overflowX = 'hidden';
-      }
-      
-      // Assemble the card
-      cardContent.appendChild(this._contentElement);
-      cardWrapper.appendChild(cardContent);
-      container.appendChild(cardWrapper);
-      this.appendChild(container);
-      
-      // Finalization
-      this._loaded = true;
-      
-      console.log(`🎉 Universal Embedder successfully embedded card #${this._config.embed_id}`);
-      console.log(`   Dashboard: ${this._config.dashboard}`);
-      console.log(`   Scroll enabled: ${this._config.enable_scroll !== false}`);
-    }
-  
-    // --------------------------------------------------------------------------
-    // Card Size Helper - DeepSeek AI optimized sizing
-    // --------------------------------------------------------------------------
-    getCardSize() {
-      return this._config.card_size || 1;
+    
+    if (changedProperties.has('hass') && this._cardElement) {
+      this._cardElement.hass = this.hass;
     }
   }
-  
-  // ============================================================================
-  // Custom Element Registration - SIMPLE & COMPATIBLE
-  // ============================================================================
-  //customElements.define('universal-embedder', UniversalEmbedder);
-  if (!customElements.get('universal-embedder')) {
-  customElements.define('universal-embedder', UniversalEmbedder);
-  // Optional: Lovelace editor integration
-  window.customCards = window.customCards || [];
-  window.customCards.push({
-    type: 'universal-embedder',
-    name: 'Universal Embedder',
-    preview: true,
-    description: 'Card Embedding - Universal solution',
-  });
-  
-  // ============================================================================
-  // Helper Functions (Optional - for future enhancements)
-  // ============================================================================
-  window.embedderHelpers = window.embedderHelpers || {
-    // Find unused embed IDs
-    findUnusedId: async function(hass, dashboard = 'lovelace') {
-      console.log('Universal Embedder: Analyzing available embed IDs...');
+
+  async _loadAndRenderCard() {
+    try {
+      console.log('DeepSeek: Kart yükleniyor...', this._config.card_id);
       
-      try {
-        const config = await hass.connection.sendMessagePromise({
-          type: 'lovelace/config',
-          url_path: dashboard === 'lovelace' ? null : dashboard
-        });
-        
-        const usedIds = new Set();
-        const iconPattern = /^EMBED#(\d{3})$/gi;
-        
-        const collectIds = (cards) => {
-          if (!cards) return;
-          
-          cards.forEach(card => {
-            if (card && typeof card === 'object') {
-              if (card.icon) {
-                const match = card.icon.match(iconPattern);
-                if (match) usedIds.add(match[1]);
-              }
-              
-              if (card.cards) {
-                collectIds(card.cards);
-              }
-            }
-          });
-        };
-        
-        config.views.forEach(view => collectIds(view.cards));
-        
-        // Find first unused ID
-        for (let i = 1; i <= 999; i++) {
-          const id = i.toString().padStart(3, '0');
-          if (!usedIds.has(id)) {
-            console.log(`✅ Available embed ID: ${id}`);
-            return id;
+      // 1. Lovelace konfigürasyonunu al
+      const currentDashboard = this._getCurrentDashboard();
+      console.log('DeepSeek: Dashboard:', currentDashboard);
+      
+      const lovelaceConfig = await this.hass.connection.sendMessagePromise({
+        type: 'lovelace/config',
+        url_path: currentDashboard === 'lovelace' ? null : currentDashboard
+      });
+
+      console.log('DeepSeek: Lovelace config alındı');
+
+      // 2. Kartı bul
+      const cardConfig = this._findCardRecursive(lovelaceConfig.views, this._config.card_id);
+      if (!cardConfig) {
+        throw new Error(`Kart '${this._config.card_id}' bulunamadı - Powered by DeepSeek`);
+      }
+
+      console.log('DeepSeek: Kart bulundu:', cardConfig);
+
+      // 3. Kart elementini oluştur
+      await this._createCardElement(cardConfig);
+
+    } catch (error) {
+      console.error('DeepSeek Hata:', error);
+      this._error = error.message;
+      this._loading = false;
+      this.requestUpdate();
+    }
+  }
+
+  async _createCardElement(cardConfig) {
+    try {
+      console.log('DeepSeek: Kart elementi oluşturuluyor...');
+      
+      // Home Assistant'ın kart helpers'ını bekle
+      while (!window.loadCardHelpers) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      const helpers = await window.loadCardHelpers();
+      this._cardElement = await helpers.createCardElement(cardConfig);
+      
+      console.log('DeepSeek: Kart elementi oluşturuldu');
+      
+      // Container'ı bul ve kartı ekle
+      await this._waitForContainer();
+      const container = this.shadowRoot.getElementById('card-container');
+      container.innerHTML = '';
+      container.appendChild(this._cardElement);
+      
+      // Hass objesini ver
+      this._cardElement.hass = this.hass;
+      
+      this._loading = false;
+      this.requestUpdate();
+      
+      console.log('DeepSeek: Kart başarıyla render edildi!');
+      
+    } catch (error) {
+      throw new Error(`Kart oluşturulamadı: ${error.message}`);
+    }
+  }
+
+  async _waitForContainer() {
+    let attempts = 0;
+    while (attempts < 50) {
+      if (this.shadowRoot && this.shadowRoot.getElementById('card-container')) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+    throw new Error('Container bulunamadı');
+  }
+
+  _findCardRecursive(views, cardId) {
+    for (const view of views) {
+      if (view.cards) {
+        for (const card of view.cards) {
+          if (card.id === cardId) return card;
+          if (card.cards) {
+            const found = this._findCardRecursive([{ cards: card.cards }], cardId);
+            if (found) return found;
           }
         }
-        
-        console.warn('⚠️ All embed IDs (001-999) are in use!');
-        return null;
-        
-      } catch (error) {
-        console.error('ID search failed:', error);
-        return '001';
       }
-    },
-    
-    // Validate embed ID format
-    validateEmbedId: function(id) {
-      const regex = /^\d{3}$/;
-      if (!regex.test(id)) {
-        throw new Error('embed_id must be 3 digits (001-999)');
-      }
-      
-      const num = parseInt(id, 10);
-      if (num < 1 || num > 999) {
-        throw new Error('embed_id must be between 001 and 999');
-      }
-      
-      return true;
     }
-  };
+    return null;
+  }
+
+  _getCurrentDashboard() {
+    const path = window.location.pathname;
+    const match = path.match(/\/(dashboard-[^\/]+|lovelace)/);
+    return match ? match[1] : 'lovelace';
+  }
+
+  getCardSize() {
+    return this._config.height ? Math.ceil(this._config.height / 100) : 4;
+  }
+}
+
+// Custom element tanımlama
+if (!customElements.get('deepseek-card-embedder')) {
+  customElements.define('deepseek-card-embedder', DeepSeekCardEmbedder);
+  
+  // HACS için
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: 'deepseek-card-embedder',
+    name: 'DeepSeek Card Embedder',
+    preview: true,
+    description: 'Tek kart gömme - Powered by DeepSeek 🚀',
+  });
+}
