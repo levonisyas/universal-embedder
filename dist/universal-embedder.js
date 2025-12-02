@@ -1,157 +1,94 @@
-import { LitElement, html, css } from 'https://unpkg.com/lit@2.1.0/index.js?module';
-
-class DeepSeekCardEmbedder extends LitElement {
-  static properties = {
-    hass: { type: Object },
-    _config: { type: Object },
-    _cardElement: { type: Object },
-    _loading: { type: Boolean },
-    _error: { type: String }
-  };
-
-  static styles = css`
-    :host {
-      display: block;
-    }
-    .loading, .error {
-      text-align: center;
-      padding: 20px;
-    }
-    .loading {
-      color: var(--primary-color);
-    }
-    .error {
-      color: var(--error-color);
-    }
-    #card-container {
-      padding: 16px;
-    }
-  `;
-
+class UniversalEmbedder extends HTMLElement {
   setConfig(config) {
-    if (!config.card_id) {
-      throw new Error('card_id required - Powered by DeepSeek');
+    // ✅ FORUM READY: Hem card_id HEM dashboard ZORUNLU
+    if (!config.card_id || !config.dashboard) {
+      throw new Error('card_id AND dashboard required - Specify both card ID and target dashboard');
     }
     this._config = config;
-    this._loading = true;
-    this._error = null;
-    this._cardElement = null;
+    this._hass = null;
+    this._loaded = false;
   }
 
-  render() {
-    if (this._error) {
-      return html`<ha-card><div class="error">${this._error}</div></ha-card>`;
+  set hass(hass) {
+    this._hass = hass;
+    if (!this._loaded) {
+      this._loadCard();
+    } else if (this._contentElement) {
+      this._contentElement.hass = hass;
     }
+  }
 
-    if (this._loading) {
-      return html`<ha-card><div class="loading">DeepSeek Kart Yükleniyor...</div></ha-card>`;
-    }
+  async _loadCard() {
+    // ✅ CLEAN CONTAINER
+    this.style.display = 'block';
+    this.style.width = '100%';
+    this.style.height = '100%';
+    this.style.minHeight = '0';
+    this.style.padding = '0';
+    this.style.margin = '0';
+    this.style.borderRadius = '0';
 
-    return html`
-      <ha-card .header=${this._config.title || 'DeepSeek Embed'}>
-        <div id="card-container">
-          ${this._cardElement ? html`<div>Kart Render Ediliyor...</div>` : html`<div>Kart Hazırlanıyor...</div>`}
-        </div>
-      </ha-card>
+    this.innerHTML = `
+      <div style="padding: 10px; color: var(--primary-color); font-style: italic;">
+        Universal Embedder loading... 🚀
+      </div>
     `;
-  }
 
-  async updated(changedProperties) {
-    if (changedProperties.has('hass') && this.hass && this._loading && !this._error) {
-      await this._loadAndRenderCard();
-    }
-    
-    if (changedProperties.has('hass') && this._cardElement) {
-      this._cardElement.hass = this.hass;
-    }
-  }
-
-  async _loadAndRenderCard() {
     try {
-      console.log('DeepSeek: Kart yükleniyor...', this._config.card_id);
+      const cardConfig = await this._findCardInDashboard();
+      await this._createCardContent(cardConfig);
       
-      // 1. Lovelace konfigürasyonunu al
-      const currentDashboard = this._getCurrentDashboard();
-      console.log('DeepSeek: Dashboard:', currentDashboard);
-      
-      const lovelaceConfig = await this.hass.connection.sendMessagePromise({
+    } catch (error) {
+      this.innerHTML = `
+        <div style="color: var(--error-color); padding: 20px; text-align: center;">
+          ${error.message}<br>
+          <small>Check card_id and dashboard parameters</small>
+        </div>
+      `;
+    }
+  }
+
+  async _findCardInDashboard() {
+    // ✅ SADECE BELİRTİLEN DASHBOARD'DA ARA
+    const dashboard = this._config.dashboard;
+    
+    console.log(`Universal Embedder: Searching in '${dashboard}' for card '${this._config.card_id}'`);
+    
+    try {
+      const lovelaceConfig = await this._hass.connection.sendMessagePromise({
         type: 'lovelace/config',
-        url_path: currentDashboard === 'lovelace' ? null : currentDashboard
+        url_path: dashboard === 'lovelace' ? null : dashboard
       });
 
-      console.log('DeepSeek: Lovelace config alındı');
-
-      // 2. Kartı bul
-      const cardConfig = this._findCardRecursive(lovelaceConfig.views, this._config.card_id);
+      const cardConfig = this._findCardInViews(lovelaceConfig.views, this._config.card_id);
       if (!cardConfig) {
-        throw new Error(`Kart '${this._config.card_id}' bulunamadı - Powered by DeepSeek`);
+        throw new Error(`Card '${this._config.card_id}' not found in dashboard '${dashboard}'`);
       }
 
-      console.log('DeepSeek: Kart bulundu:', cardConfig);
-
-      // 3. Kart elementini oluştur
-      await this._createCardElement(cardConfig);
-
-    } catch (error) {
-      console.error('DeepSeek Hata:', error);
-      this._error = error.message;
-      this._loading = false;
-      this.requestUpdate();
+      console.log(`Universal Embedder: ✓ Card found in ${dashboard}`);
+      
+      // Title kontrolü
+      if (this._config.show_title !== true) {
+        delete cardConfig.title;
+      }
+      
+      return cardConfig;
+      
+    } catch (err) {
+      if (err.message.includes('Not found')) {
+        throw new Error(`Dashboard '${dashboard}' not found or inaccessible`);
+      }
+      throw new Error(`Error accessing dashboard '${dashboard}': ${err.message}`);
     }
   }
 
-  async _createCardElement(cardConfig) {
-    try {
-      console.log('DeepSeek: Kart elementi oluşturuluyor...');
-      
-      // Home Assistant'ın kart helpers'ını bekle
-      while (!window.loadCardHelpers) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-      const helpers = await window.loadCardHelpers();
-      this._cardElement = await helpers.createCardElement(cardConfig);
-      
-      console.log('DeepSeek: Kart elementi oluşturuldu');
-      
-      // Container'ı bul ve kartı ekle
-      await this._waitForContainer();
-      const container = this.shadowRoot.getElementById('card-container');
-      container.innerHTML = '';
-      container.appendChild(this._cardElement);
-      
-      // Hass objesini ver
-      this._cardElement.hass = this.hass;
-      
-      this._loading = false;
-      this.requestUpdate();
-      
-      console.log('DeepSeek: Kart başarıyla render edildi!');
-      
-    } catch (error) {
-      throw new Error(`Kart oluşturulamadı: ${error.message}`);
-    }
-  }
-
-  async _waitForContainer() {
-    let attempts = 0;
-    while (attempts < 50) {
-      if (this.shadowRoot && this.shadowRoot.getElementById('card-container')) {
-        return true;
-      }
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-    throw new Error('Container bulunamadı');
-  }
-
-  _findCardRecursive(views, cardId) {
+  _findCardInViews(views, cardId) {
     for (const view of views) {
       if (view.cards) {
         for (const card of view.cards) {
           if (card.id === cardId) return card;
           if (card.cards) {
-            const found = this._findCardRecursive([{ cards: card.cards }], cardId);
+            const found = this._findCardInViews([{ cards: card.cards }], cardId);
             if (found) return found;
           }
         }
@@ -160,27 +97,69 @@ class DeepSeekCardEmbedder extends LitElement {
     return null;
   }
 
-  _getCurrentDashboard() {
-    const path = window.location.pathname;
-    const match = path.match(/\/(dashboard-[^\/]+|lovelace)/);
-    return match ? match[1] : 'lovelace';
+  async _createCardContent(cardConfig) {
+    const helpers = await window.loadCardHelpers();
+    this._contentElement = await helpers.createCardElement(cardConfig);
+    this._contentElement.hass = this._hass;
+    
+    // ✅ CLEAN CONTAINER
+    this.innerHTML = '';
+    
+    const container = document.createElement('div');
+    container.className = 'universal-container';
+    container.style.padding = '0';
+    container.style.margin = '0';
+    
+    const cardWrapper = document.createElement('ha-card');
+    cardWrapper.style.display = 'flex';
+    cardWrapper.style.flexDirection = 'column';
+    cardWrapper.style.height = '100%';
+    cardWrapper.style.width = '100%';
+    cardWrapper.style.padding = '0';
+    cardWrapper.style.margin = '0';
+    cardWrapper.style.borderRadius = '0';
+    cardWrapper.style.background = 'none';
+    cardWrapper.style.boxShadow = 'none';
+    
+    const cardContent = document.createElement('div');
+    cardContent.className = 'card-content';
+    cardContent.style.flex = '1';
+    cardContent.style.minHeight = '0';
+    cardContent.style.display = 'flex';
+    cardContent.style.flexDirection = 'column';
+    cardContent.style.padding = '0';
+    
+    // ✅ SMART SCROLL
+    if (this._config.enable_scroll === false) {
+      cardContent.style.overflow = 'visible';
+    } else {
+      cardContent.style.overflowY = 'auto';
+      cardContent.style.overflowX = 'hidden';
+    }
+    
+    cardContent.appendChild(this._contentElement);
+    cardWrapper.appendChild(cardContent);
+    container.appendChild(cardWrapper);
+    this.appendChild(container);
+    
+    this._loaded = true;
+    console.log('Universal Embedder: ✓ Card embedded successfully!');
   }
 
   getCardSize() {
-    return this._config.height ? Math.ceil(this._config.height / 100) : 4;
+    return this._config.card_size || 1;
   }
 }
 
-// Custom element tanımlama
-if (!customElements.get('deepseek-card-embedder')) {
-  customElements.define('deepseek-card-embedder', DeepSeekCardEmbedder);
+// ✅ UNIVERSAL EMBEDDER - FORUM READY
+if (!customElements.get('universal-embedder')) {
+  customElements.define('universal-embedder', UniversalEmbedder);
   
-  // HACS için
   window.customCards = window.customCards || [];
   window.customCards.push({
-    type: 'deepseek-card-embedder',
-    name: 'DeepSeek Card Embedder',
+    type: 'universal-embedder',
+    name: 'Universal Embedder',
     preview: true,
-    description: 'Tek kart gömme - Powered by DeepSeek 🚀',
+    description: 'Embed cards from specific dashboards',
   });
 }
