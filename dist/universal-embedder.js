@@ -258,8 +258,9 @@ class UniversalEmbedder extends HTMLElement {
   // ============================================================================
   // Custom Element Registration - SIMPLE & COMPATIBLE
   // ============================================================================
+  //customElements.define('universal-embedder', UniversalEmbedder);
+  if (!customElements.get('universal-embedder')) {
   customElements.define('universal-embedder', UniversalEmbedder);
-  
   // Optional: Lovelace editor integration
   window.customCards = window.customCards || [];
   window.customCards.push({
