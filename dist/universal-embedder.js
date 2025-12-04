@@ -1,12 +1,12 @@
 // Universal Embedder - Original Structure Preserved
-// Only adding show_close and default_visible features
+// Bug fixes applied
 
 class UniversalEmbedder extends HTMLElement {
   constructor() {
     super();
     this._config = {};
     this._content = null;
-    this._closeBtn = null; // NEW: Close button reference
+    this._closeBtn = null;
   }
 
   setConfig(config) {
@@ -20,12 +20,12 @@ class UniversalEmbedder extends HTMLElement {
       // YOUR EXISTING PARAMETERS - UNCHANGED
       embed_id: null,
       dashboard: 'lovelace',
-      // NEW PARAMETERS - Added at the end
+      // NEW PARAMETERS
       show_close: false,
-      default_visible: false
+      default_visible: true  // DEFAULT: true (görünür başlasın)
     };
     
-    // Merge user config
+    // Merge user config - KEEP OLD PARAMETERS (show_title, etc.)
     Object.assign(this._config, config);
     
     // Register card if it has an ID
@@ -37,10 +37,8 @@ class UniversalEmbedder extends HTMLElement {
   connectedCallback() {
     if (!this._config.url) return;
     
-    // NEW: Set initial visibility
-    if (this._config.default_visible === false) {
-      this.style.display = 'none';
-    }
+    // FIX 1: Display visibility HERE, not in _loadCard
+    this.style.display = this._config.default_visible ? 'block' : 'none';
     
     this._loadCard();
   }
@@ -52,38 +50,62 @@ class UniversalEmbedder extends HTMLElement {
       window.ueManager = {
         showCard: function(cardId) {
           const card = window.ueCards[cardId];
-          if (card) card.style.display = 'block';
+          if (card) {
+            card.style.display = 'block';
+            console.log('Card shown:', cardId);
+          }
         },
         hideCard: function(cardId) {
           const card = window.ueCards[cardId];
-          if (card) card.style.display = 'none';
+          if (card) {
+            card.style.display = 'none';
+            console.log('Card hidden:', cardId);
+          }
         },
         toggleCard: function(cardId) {
           const card = window.ueCards[cardId];
           if (card) {
             card.style.display = card.style.display === 'none' ? 'block' : 'none';
+            console.log('Card toggled:', cardId, 'New state:', card.style.display);
           }
         }
       };
       
-      // Register service if in Home Assistant
-      if (window.hassConnection) {
-        window.hassConnection.services = window.hassConnection.services || {};
-        window.hassConnection.services.javascript = window.hassConnection.services.javascript || {};
-        
-        if (!window.hassConnection.services.javascript.ue_toggle_card) {
-          window.hassConnection.services.javascript.ue_toggle_card = function(params) {
-            if (params && params.card_id && window.ueManager) {
-              window.ueManager.toggleCard(params.card_id);
-            }
-          };
-        }
-      }
+      // FIX 2: Register service PROPERLY
+      this._registerService();
     }
     
     // Register this card with embed_id
     if (this._config.embed_id) {
       window.ueCards[this._config.embed_id] = this;
+      console.log('Card registered:', this._config.embed_id);
+    }
+  }
+
+  _registerService() {
+    // Check if we're in Home Assistant
+    if (window.hassConnection) {
+      const serviceName = 'ue_toggle_card';
+      
+      // Create services object if not exists
+      if (!window.hassConnection.services) {
+        window.hassConnection.services = {};
+      }
+      if (!window.hassConnection.services.javascript) {
+        window.hassConnection.services.javascript = {};
+      }
+      
+      // Register the service
+      window.hassConnection.services.javascript[serviceName] = function(params) {
+        console.log('Service called: ue_toggle_card', params);
+        if (params && params.embed_id && window.ueManager) {
+          window.ueManager.toggleCard(params.embed_id);
+        } else {
+          console.error('Missing embed_id or ueManager not found');
+        }
+      };
+      
+      console.log('Service registered: javascript.' + serviceName);
     }
   }
 
@@ -99,7 +121,7 @@ class UniversalEmbedder extends HTMLElement {
       card.style.cssText = this._config.style;
     }
 
-    // MODIFIED: Create header with close button if needed
+    // Create header with close button if needed
     if (this._config.title || this._config.show_close) {
       const header = document.createElement('div');
       header.style.cssText = `
@@ -128,7 +150,7 @@ class UniversalEmbedder extends HTMLElement {
         header.appendChild(spacer);
       }
 
-      // NEW: Close button
+      // Close button
       if (this._config.show_close) {
         const closeBtn = document.createElement('button');
         closeBtn.innerHTML = '×';
@@ -160,6 +182,7 @@ class UniversalEmbedder extends HTMLElement {
         // Close functionality
         closeBtn.addEventListener('click', () => {
           this.style.display = 'none';
+          console.log('Card closed via X button:', this._config.embed_id);
         });
         
         this._closeBtn = closeBtn;
@@ -218,9 +241,11 @@ class UniversalEmbedder extends HTMLElement {
 
     this._content = card;
     this.appendChild(card);
+    
+    console.log('Card loaded:', this._config.embed_id, 'Visible:', this.style.display);
   }
 
-  // NEW: Helper methods for external control
+  // Helper methods for external control
   show() {
     this.style.display = 'block';
   }
