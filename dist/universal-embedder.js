@@ -71,6 +71,9 @@ class UniversalEmbedder extends HTMLElement {
         const cardConfig = await this._findCardByEmbedId();
         await this._createCardContent(cardConfig);
         
+        // HASH CONTROL - YENİ EKLENDİ
+        this._setupHashControl();
+        
       } catch (error) {
         // User-friendly error messages
         this.innerHTML = `
@@ -90,6 +93,56 @@ class UniversalEmbedder extends HTMLElement {
           </div>
         `;
       }
+    }
+  
+    // --------------------------------------------------------------------------
+    // HASH CONTROL FUNCTIONS - YENİ EKLENDİ (BUTON KONTROLÜ)
+    // --------------------------------------------------------------------------
+    _setupHashControl() {
+      // Hash değişimini dinle
+      window.addEventListener('hashchange', () => this._checkHash());
+      
+      // İlk yüklemede kontrol et
+      setTimeout(() => this._checkHash(), 100);
+    }
+    
+    _checkHash() {
+      const hash = window.location.hash; // Örnek: #embed_001
+      const myHash = `#embed_${this._config.embed_id}`; // #embed_001
+      
+      console.log(`🔗 Universal Embedder: Hash check - Current: "${hash}", My hash: "${myHash}"`);
+      
+      if (hash === myHash) {
+        // Hash benim embed_id'm ile eşleşiyor - AÇ
+        console.log(`✅ Universal Embedder: Hash matched! Opening embedder ${this._config.embed_id}`);
+        this.style.display = 'block';
+        
+        // Diğer embedder'ları KAPAT
+        this._closeOtherEmbedders();
+      }
+      // Eğer hash yoksa veya başka bir hash ise, hiçbir şey yapma
+      // (default_visible değeri korunur)
+    }
+    
+    _closeOtherEmbedders() {
+      // Aynı view'deki diğer embedder'ları bul
+      const view = this.closest('hui-view');
+      if (!view) {
+        console.log('⚠️ Universal Embedder: No view found for closing others');
+        return;
+      }
+      
+      const embedders = view.querySelectorAll('universal-embedder');
+      let closedCount = 0;
+      
+      embedders.forEach(embedder => {
+        if (embedder !== this && embedder._config) {
+          embedder.style.display = 'none';
+          closedCount++;
+        }
+      });
+      
+      console.log(`📌 Universal Embedder: Closed ${closedCount} other embedder(s)`);
     }
   
     // --------------------------------------------------------------------------
@@ -281,6 +334,7 @@ class UniversalEmbedder extends HTMLElement {
           // Kapatma fonksiyonu
           closeButton.addEventListener('click', () => {
             this.style.display = 'none';
+            console.log(`❌ Universal Embedder: Closed via X button - embed_id: ${this._config.embed_id}`);
           });
           
           header.appendChild(closeButton);
@@ -316,6 +370,7 @@ class UniversalEmbedder extends HTMLElement {
       console.log(`   Show Close: ${this._config.show_close}`);
       console.log(`   Show Title: ${this._config.show_title}`);
       console.log(`   Default Visible: ${this._config.default_visible}`);
+      console.log(`   Hash Control: ACTIVE (use #embed_${this._config.embed_id})`);
     }
   
     // --------------------------------------------------------------------------
