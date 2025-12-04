@@ -121,7 +121,7 @@ input_select:
   active_embedder:
     name: "Active Embedder"
     options: ["none", "embed_001", "embed_002", "embed_003"]
-    initial: "none"
+    initial: "none" #Yüklenirken Açık olacak kartı belirler
 ```
 ```yaml
 # 1. BUTON MENÜSÜ - HORIZONTAL STACK
