@@ -17,7 +17,10 @@ class UniversalEmbedder extends HTMLElement {
       allow: '',
       sandbox: '',
       style: '',
-      // NEW PARAMETERS - Added at the end to not break existing configs
+      // YOUR EXISTING PARAMETERS - UNCHANGED
+      embed_id: null,
+      dashboard: 'lovelace',
+      // NEW PARAMETERS - Added at the end
       show_close: false,
       default_visible: false
     };
@@ -26,7 +29,7 @@ class UniversalEmbedder extends HTMLElement {
     Object.assign(this._config, config);
     
     // Register card if it has an ID
-    if (this._config.card_id) {
+    if (this._config.embed_id) {
       this._registerCard();
     }
   }
@@ -78,9 +81,9 @@ class UniversalEmbedder extends HTMLElement {
       }
     }
     
-    // Register this card
-    if (this._config.card_id) {
-      window.ueCards[this._config.card_id] = this;
+    // Register this card with embed_id
+    if (this._config.embed_id) {
+      window.ueCards[this._config.embed_id] = this;
     }
   }
 
