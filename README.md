@@ -47,11 +47,14 @@ entities:
 type: custom:universal-embedder
 embed_id: "001"          # REQUIRED: 3-digit ID (001-999) *IMPORTANT*
 dashboard: lovelace      # REQUIRED: Source dashboard name *IMPORTANT*
-show_title: false        # OPTIONAL: Hide original title (default: true)
+show_title: false        # OPTIONAL: Hide source card title (default: true)
 enable_scroll: true      # OPTIONAL: Enable scrolling (default: true)
 card_size: 2             # OPTIONAL: Card height 1-10 (default: 1)
+show_close: true         # OPTIONAL: Show close (X) button in header (default: false)
+embedder_title: ""       # OPTIONAL: Custom title for embedder header, use string for title (default: empty)
+default_visible: true    # OPTIONAL: Initial visibility on load (default: true)
 ```
-## 🔍 GELİŞMİŞ OPSİYONEL PARAMETRELER:
+# 🔍 GELİŞMİŞ OPSİYONEL PARAMETRELER:
 ```yaml
 styles:
   card:
@@ -87,9 +90,9 @@ test_mode: false                 # Debug modu (console'da detaylı log)
 ## Card Mod uyumluğu
 ```yaml
 card_mod:
-  class: test-test               #view içinde çok sayıda universal-embedder kullanmak için
+  class: EMBED-001               #view içinde çok sayıda universal-embedder kullanmak için
   style: |
-    .test-test {                 #view içinde çok sayıda universal-embedder kullanmak için
+    .EMBED-001 {                 #view içinde çok sayıda universal-embedder kullanmak için
       position: absolute !important;
       top: 30% !important;
       right: 5% !important;
@@ -98,7 +101,101 @@ card_mod:
       z-index: 1 !important;
     }
 ```
+## Button menü olarak kullanımı
+```yaml
+#scripts.yaml
+embedder_open:
+  alias: "Open Embedder"
+  variables:
+    embed_id: ""
+  sequence:
+    - service: input_select.select_option
+      data:
+        entity_id: input_select.active_embedder
+        option: "{{ embed_id }}"
+  mode: single
+```
+```yaml
+#configuration.yaml
+input_select:
+  active_embedder:
+    name: "Active Embedder"
+    options: ["none", "embed_001", "embed_002", "embed_003"]
+    initial: "none"
+```
+```yaml
+# 1. BUTON MENÜSÜ - HORIZONTAL STACK
+type: horizontal-stack
+cards:
+  # LIGHTS BUTON
+  - type: button
+    name: "Lights"
+    icon: mdi:lightbulb
+    show_name: true
+    show_icon: true
+    tap_action:
+      action: call-service
+      service: script.embedder_open
+      data:
+        embed_id: "embed_001"
 
+  # HOME BUTON (TÜMÜNÜ KAPAT)
+  - type: button
+    name: "Home"
+    icon: mdi:home
+    show_name: true
+    show_icon: true
+    tap_action:
+      action: call-service
+      service: input_select.select_option
+      data:
+        entity_id: input_select.active_embedder
+        option: "none"
+card_mod:
+  style: |
+    :host {
+      position: absolute !important;   /* parent grid'e göre sabit */
+      bottom: 0% !important;
+      right: 20% !important;
+      width: 500px !important;
+      #z-index: 1 !important;           /* edit menüsünü kapatmaz */
+    }
+```
+```yaml 
+# 2. LIGHTS KARTI - CONDITIONAL
+type: conditional
+conditions:
+  - entity: input_select.active_embedder
+    state: "embed_001"
+card:
+  type: custom:universal-embedder
+  embed_id: "001"
+  dashboard: "dashboard-test"  # ⬅️ KENDİ DASHBOARD'UNU YAZ
+  embedder_title: "Lights"
+  show_close: false    # ⬅️ MENÜ KARTLARINDA X YOK KULANNAM!
+  default_visible: true
+card_mod:
+  class: EMBED-001               #view içinde çok sayıda universal-embedder kullanmak için
+  style: |
+    .EMBED-001 {                 #view içinde çok sayıda universal-embedder kullanmak için
+      position: absolute !important;
+      top: 30% !important;
+      right: 5% !important;
+      width: 400px !important;
+      height: 300px !important;
+      z-index: 1 !important;
+    }
+```
+```yaml 
+#KAYNAK KARTLAR (dashboard-test dashboard'unda)
+# KART 1: Lights (EMBED#001)
+type: entities
+icon: EMBED#001  # ⬅️ BU ÇOK ÖNEMLİ!
+title: Lights Control
+entities:
+  - light.living_room
+  - light.kitchen
+``` 
 ## 🚨 HATA DURUMLARI:
  - embed_id yoksa: "Universal Embedder requires both embed_id AND dashboard parameters"
  - dashboard yoksa: "Dashboard 'dashboard_name' not found or inaccessible"
