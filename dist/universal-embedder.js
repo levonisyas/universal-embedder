@@ -18,10 +18,12 @@ class UniversalEmbedder extends HTMLElement {
         throw new Error('embed_id must be a 3-digit number (001-999)');
       }
       
-      // Store configuration - ADDED show_close parameter
+      // Store configuration
       this._config = {
         ...config,
-        show_close: config.show_close || false  // YENİ EKLENDİ
+        show_close: config.show_close || false,      // X butonu için
+        embedder_title: config.embedder_title || '',  // Universal Embedder başlığı
+        show_title: config.show_title !== false      // Default: true
       };
       this._hass = null;
       this._loaded = false;
@@ -118,8 +120,8 @@ class UniversalEmbedder extends HTMLElement {
   
         console.log(`✅ Universal Embedder: Successfully located card #${targetId} in ${dashboard}`);
         
-        // Optional title handling
-        if (this._config.show_title !== true && searchResult.card.title) {
+        // Kaynak kartın title'ını gizle (show_title: false ise)
+        if (this._config.show_title === false && searchResult.card.title) {
           delete searchResult.card.title;
         }
         
@@ -208,7 +210,7 @@ class UniversalEmbedder extends HTMLElement {
       container.style.margin = '0';
       container.style.height = '100%';
       
-      // Card wrapper
+      // Card wrapper - HA ORJINAL HEADER YAPISI
       const cardWrapper = document.createElement('ha-card');
       cardWrapper.style.display = 'flex';
       cardWrapper.style.flexDirection = 'column';
@@ -220,81 +222,83 @@ class UniversalEmbedder extends HTMLElement {
       cardWrapper.style.background = 'none';
       cardWrapper.style.boxShadow = 'none';
       
-      // MODIFIED: Add header with close button if show_close is true
-      if (this._config.show_close) {
+      // HA Header - Sadece embedder_title veya show_close varsa
+      if (this._config.embedder_title || this._config.show_close) {
         const header = document.createElement('div');
+        header.className = 'card-header';
         header.style.cssText = `
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 8px 16px;
-          background: var(--ha-card-background, #fff);
-          border-bottom: 1px solid var(--divider-color, #e0e0e0);
-          font-weight: bold;
-          color: var(--primary-text-color, #212121);
+          min-height: 48px;
         `;
         
-        // Title area (empty if no title)
-        const titleArea = document.createElement('div');
-        if (cardConfigCopy.title) {
-          titleArea.textContent = cardConfigCopy.title;
-          titleArea.style.fontSize = '16px';
-          titleArea.style.fontWeight = '500';
+        // Sol taraf: embedder_title
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'name';
+        titleDiv.textContent = this._config.embedder_title || '';
+        titleDiv.style.cssText = `
+          font-size: 16px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+          flex: 1;
+        `;
+        header.appendChild(titleDiv);
+        
+        // Sağ taraf: X butonu (show_close: true ise)
+        if (this._config.show_close) {
+          const closeButton = document.createElement('button');
+          closeButton.innerHTML = '×';
+          closeButton.className = 'close-button';
+          closeButton.style.cssText = `
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--secondary-text-color);
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+            margin: 0;
+          `;
+          
+          // Hover efekti
+          closeButton.addEventListener('mouseenter', () => {
+            closeButton.style.backgroundColor = 'var(--divider-color, #e0e0e0)';
+          });
+          
+          closeButton.addEventListener('mouseleave', () => {
+            closeButton.style.backgroundColor = 'transparent';
+          });
+          
+          // Kapatma fonksiyonu
+          closeButton.addEventListener('click', () => {
+            this.style.display = 'none';
+          });
+          
+          header.appendChild(closeButton);
         }
-        header.appendChild(titleArea);
         
-        // Close button (X)
-        const closeButton = document.createElement('button');
-        closeButton.innerHTML = '×';
-        closeButton.style.cssText = `
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: var(--secondary-text-color, #737373);
-          padding: 0;
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          transition: background-color 0.3s;
-        `;
-        
-        // Hover effects
-        closeButton.addEventListener('mouseenter', () => {
-          closeButton.style.backgroundColor = 'var(--divider-color, #e0e0e0)';
-        });
-        
-        closeButton.addEventListener('mouseleave', () => {
-          closeButton.style.backgroundColor = 'transparent';
-        });
-        
-        // Close functionality
-        closeButton.addEventListener('click', () => {
-          this.style.display = 'none';
-        });
-        
-        header.appendChild(closeButton);
         cardWrapper.appendChild(header);
       }
       
-      // Content area with smart scrolling
+      // Content area - minimum yükseklik
       const cardContent = document.createElement('div');
       cardContent.className = 'card-content';
-      cardContent.style.flex = '1';
-      cardContent.style.minHeight = '0';
-      cardContent.style.display = 'flex';
-      cardContent.style.flexDirection = 'column';
-      cardContent.style.padding = '0';
-      
-      if (this._config.enable_scroll === false) {
-        cardContent.style.overflow = 'visible';
-      } else {
-        cardContent.style.overflowY = 'auto';
-        cardContent.style.overflowX = 'hidden';
-      }
+      cardContent.style.cssText = `
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        overflow: ${this._config.enable_scroll === false ? 'visible' : 'auto'};
+      `;
       
       // Assemble the card
       cardContent.appendChild(this._contentElement);
@@ -307,8 +311,9 @@ class UniversalEmbedder extends HTMLElement {
       
       console.log(`🎉 Universal Embedder successfully embedded card #${this._config.embed_id}`);
       console.log(`   Dashboard: ${this._config.dashboard}`);
-      console.log(`   Scroll enabled: ${this._config.enable_scroll !== false}`);
-      console.log(`   Show close button: ${this._config.show_close}`);
+      console.log(`   Embedder Title: "${this._config.embedder_title}"`);
+      console.log(`   Show Close: ${this._config.show_close}`);
+      console.log(`   Show Title: ${this._config.show_title}`);
     }
   
     // --------------------------------------------------------------------------
