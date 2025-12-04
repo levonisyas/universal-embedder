@@ -307,9 +307,6 @@ class UniversalEmbedder extends HTMLElement {
       container.appendChild(cardWrapper);
       this.appendChild(container);
       
-      // Register for button control (VIEW-BASED)
-      this._registerForButtonControl();
-      
       // Finalization
       this._loaded = true;
       
@@ -319,82 +316,6 @@ class UniversalEmbedder extends HTMLElement {
       console.log(`   Show Close: ${this._config.show_close}`);
       console.log(`   Show Title: ${this._config.show_title}`);
       console.log(`   Default Visible: ${this._config.default_visible}`);
-    }
-  
-    // --------------------------------------------------------------------------
-    // Button Control Registration - VIEW-BASED SYSTEM
-    // --------------------------------------------------------------------------
-    _registerForButtonControl() {
-      // Initialize registry if not exists
-      if (!window.ueViewRegistry) {
-        window.ueViewRegistry = new Map();
-        
-        // Register JavaScript service for button control
-        if (window.hassConnection) {
-          window.hassConnection.services = window.hassConnection.services || {};
-          window.hassConnection.services.javascript = window.hassConnection.services.javascript || {};
-          
-          // Service: javascript.ue_view_toggle
-          window.hassConnection.services.javascript.ue_view_toggle = function(params) {
-            const embed_id = params.embed_id;
-            const sourceElement = params.source || null;
-            
-            console.log(`🔘 Button pressed for embed_id: ${embed_id}`);
-            
-            // Find the view containing the button
-            let view = null;
-            if (sourceElement) {
-              // Find parent view element
-              let element = sourceElement;
-              while (element && !view) {
-                if (element.tagName === 'HUI-VIEW') {
-                  view = element;
-                  break;
-                }
-                element = element.parentElement;
-              }
-            }
-            
-            // If view not found via source, try to find current view
-            if (!view) {
-              view = document.querySelector('hui-view[data-active]') || 
-                     document.querySelector('hui-view');
-            }
-            
-            if (!view) {
-              console.error('❌ Could not find current view');
-              return;
-            }
-            
-            // Find all universal-embedder elements in this view
-            const embedders = view.querySelectorAll('universal-embedder');
-            let targetFound = false;
-            
-            embedders.forEach(embedder => {
-              if (embedder._config && embedder._config.embed_id === embed_id) {
-                // Target embedder - TOGGLE it
-                if (embedder.style.display === 'none') {
-                  embedder.style.display = 'block';
-                  console.log(`✅ Opened embedder: ${embed_id}`);
-                } else {
-                  embedder.style.display = 'none';
-                  console.log(`✅ Closed embedder: ${embed_id}`);
-                }
-                targetFound = true;
-              } else {
-                // Other embedders - CLOSE them
-                embedder.style.display = 'none';
-              }
-            });
-            
-            if (!targetFound) {
-              console.warn(`⚠️ No embedder found with embed_id: ${embed_id} in current view`);
-            }
-          };
-          
-          console.log('✅ Registered service: javascript.ue_view_toggle');
-        }
-      }
     }
   
     // --------------------------------------------------------------------------
@@ -503,31 +424,5 @@ class UniversalEmbedder extends HTMLElement {
       }
       
       return true;
-    },
-    
-    // Manual toggle function (for debugging)
-    toggleEmbedder: function(embed_id) {
-      console.log('Manual toggle called for:', embed_id);
-      
-      // Try to find current view
-      const view = document.querySelector('hui-view[data-active]') || 
-                   document.querySelector('hui-view');
-      
-      if (!view) {
-        console.error('No view found');
-        return false;
-      }
-      
-      const embedders = view.querySelectorAll('universal-embedder');
-      let found = false;
-      
-      embedders.forEach(embedder => {
-        if (embedder._config && embedder._config.embed_id === embed_id) {
-          embedder.toggle();
-          found = true;
-        }
-      });
-      
-      return found;
     }
   };
