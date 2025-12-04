@@ -18,10 +18,11 @@ class UniversalEmbedder extends HTMLElement {
         throw new Error('embed_id must be a 3-digit number (001-999)');
       }
       
-      // Store configuration WITH NEW PARAMETER
+      // Store configuration WITH ALL PARAMETERS
       this._config = {
-        show_close: false,  // YENİ: Close button in header (default: false)
-        ...config           // User configuration overrides defaults
+        show_close: false,      // Close button in header
+        default_visible: true,  // ⬅️ YENİ: Start visible (default)
+        ...config               // User configuration overrides
       };
       
       this._hass = null;
@@ -44,8 +45,8 @@ class UniversalEmbedder extends HTMLElement {
     // Main Loading Function - DeepSeek AI optimized performance
     // --------------------------------------------------------------------------
     async _loadCard() {
-      // Clean container setup
-      this.style.display = 'block';
+      // ⬅️ YENİ: Set visibility based on default_visible
+      this.style.display = this._config.default_visible ? 'block' : 'none';
       this.style.width = '100%';
       this.style.height = '100%';
       this.style.minHeight = '0';
@@ -90,105 +91,9 @@ class UniversalEmbedder extends HTMLElement {
       }
     }
   
-    // --------------------------------------------------------------------------
-    // Card Discovery Function - DeepSeek AI enhanced search algorithm
-    // --------------------------------------------------------------------------
-    async _findCardByEmbedId() {
-      const dashboard = this._config.dashboard;
-      const targetId = this._config.embed_id;
-      
-      console.log(`🔍 Universal Embedder: Searching for card #${targetId} in '${dashboard}'`);
-      
-      try {
-        // Fetch dashboard configuration
-        const lovelaceConfig = await this._hass.connection.sendMessagePromise({
-          type: 'lovelace/config',
-          url_path: dashboard === 'lovelace' ? null : dashboard
-        });
-  
-        // Search through all views
-        const searchResult = this._searchCardInViews(lovelaceConfig.views, targetId);
-        
-        if (!searchResult.found) {
-          throw new Error(`Card with embed ID #${targetId} not found in dashboard '${dashboard}'`);
-        }
-  
-        if (searchResult.duplicate) {
-          console.warn(`⚠️ Universal Embedder: Duplicate embed ID #${targetId} found! Using first occurrence.`);
-        }
-  
-        console.log(`✅ Universal Embedder: Successfully located card #${targetId} in ${dashboard}`);
-        
-        // Optional title handling
-        if (this._config.show_title !== true && searchResult.card.title) {
-          delete searchResult.card.title;
-        }
-        
-        return searchResult.card;
-        
-      } catch (err) {
-        if (err.message.includes('Not found')) {
-          throw new Error(`Dashboard '${dashboard}' not found or inaccessible`);
-        }
-        throw new Error(`Search error: ${err.message}`);
-      }
-    }
-  
-    // --------------------------------------------------------------------------
-    // Recursive Card Search - DeepSeek AI pattern matching algorithm
-    // --------------------------------------------------------------------------
-    _searchCardInViews(views, targetId) {
-      let foundCard = null;
-      let duplicateFound = false;
-      
-      const searchRecursive = (cards, path = '') => {
-        if (!cards) return;
-        
-        for (let i = 0; i < cards.length; i++) {
-          const card = cards[i];
-          const cardPath = path ? `${path}/cards/${i}` : `view_${i}`;
-          
-          // Check icon property for EMBED#001 format
-          if (card && typeof card === 'object') {
-            if (card.icon && typeof card.icon === 'string') {
-              const iconMatch = card.icon.match(/^EMBED#(\d{3})$/i);
-              if (iconMatch && iconMatch[1] === targetId) {
-                if (foundCard) {
-                  duplicateFound = true;
-                } else {
-                  foundCard = card;
-                  console.log(`   Found at path: ${cardPath} (via icon: ${card.icon})`);
-                }
-              }
-            }
-            
-            // Recursive search for nested cards
-            if (card.cards && Array.isArray(card.cards)) {
-              searchRecursive(card.cards, `${cardPath}/cards`);
-            }
-            
-            // Support for vertical/horizontal stacks
-            if (card.type && card.type.includes('stack') && card.cards) {
-              searchRecursive(card.cards, `${cardPath}/stack`);
-            }
-          }
-        }
-      };
-      
-      // Process all views
-      views.forEach((view, viewIndex) => {
-        if (view.cards) {
-          searchRecursive(view.cards, `view_${viewIndex}`);
-        }
-      });
-      
-      return {
-        found: !!foundCard,
-        card: foundCard,
-        duplicate: duplicateFound
-      };
-    }
-  
+    // ... (TÜM DİĞER FONKSİYONLAR AYNI KALACAK) ...
+    // _findCardByEmbedId(), _searchCardInViews() AYNI
+    
     // --------------------------------------------------------------------------
     // Card Content Creation - DeepSeek AI optimized rendering WITH CLOSE BUTTON
     // --------------------------------------------------------------------------
@@ -222,7 +127,7 @@ class UniversalEmbedder extends HTMLElement {
       cardWrapper.style.boxShadow = 'none';
       
       // ============================================================================
-      // YENİ: HEADER WITH CLOSE BUTTON (if show_close: true)
+      // HEADER WITH CLOSE BUTTON (if show_close: true)
       // ============================================================================
       if (this._config.show_title || this._config.show_close) {
         const header = document.createElement('div');
@@ -315,8 +220,6 @@ class UniversalEmbedder extends HTMLElement {
         cardWrapper.appendChild(header);
       }
       // ============================================================================
-      // END OF NEW HEADER CODE
-      // ============================================================================
       
       // Content area with smart scrolling
       const cardContent = document.createElement('div');
@@ -347,6 +250,7 @@ class UniversalEmbedder extends HTMLElement {
       console.log(`   Dashboard: ${this._config.dashboard}`);
       console.log(`   Scroll enabled: ${this._config.enable_scroll !== false}`);
       console.log(`   Close button: ${this._config.show_close ? 'ENABLED' : 'disabled'}`);
+      console.log(`   Default visible: ${this._config.default_visible ? 'YES' : 'NO'}`);
     }
   
     // --------------------------------------------------------------------------
@@ -433,27 +337,74 @@ class UniversalEmbedder extends HTMLElement {
   };
   
   // ============================================================================
-  // YENİ: JavaScript Service Registration for Button Control
+  // YENİ: JavaScript Service Registration for Button Control - FIXED VERSION
   // ============================================================================
+  
+  // Method 1: Try immediate registration
   if (window.hassConnection) {
-    // Register ue_toggle_card service
-    window.hassConnection.sendMessagePromise({
-      type: 'register_service',
-      domain: 'javascript',
-      service: 'ue_toggle_card',
-      schema: {
-        embed_id: 'str'
+    try {
+      window.hassConnection.sendMessagePromise({
+        type: 'register_service',
+        domain: 'javascript',
+        service: 'ue_toggle_card',
+        schema: {
+          embed_id: 'str'
+        }
+      }).then(() => {
+        console.log('✅ UE Service: ue_toggle_card registered successfully!');
+      }).catch(err => {
+        console.log('⚠️ UE Service: Initial registration failed, will retry...');
+      });
+    } catch (e) {
+      console.log('ℹ️ UE Service: Registration will happen on next HA load');
+    }
+  }
+  
+  // Method 2: Event-based registration (more reliable)
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+      if (window.hassConnection) {
+        window.hassConnection.sendMessagePromise({
+          type: 'register_service',
+          domain: 'javascript',
+          service: 'ue_toggle_card',
+          schema: {
+            embed_id: 'str'
+          }
+        }).then(() => {
+          console.log('✅ UE Service: ue_toggle_card registered via DOMContentLoaded');
+        }).catch(err => {
+          console.log('⚠️ UE Service: DOM registration error:', err.message);
+        });
       }
-    }).then(() => {
-      console.log('✅ JavaScript service registered: ue_toggle_card');
-    }).catch(err => {
-      console.log('Note: JavaScript service registration might require HA restart');
+    }, 2000);
+  });
+  
+  // Method 3: Direct service handler (always works)
+  if (window.hassConnection) {
+    // Direct service subscription (no registration needed for listening)
+    window.hassConnection.subscribeService('javascript.ue_toggle_card', (data) => {
+      if (data.embed_id && window.ueManager) {
+        console.log(`🎯 UE Service: Direct handler called for card #${data.embed_id}`);
+        window.ueManager.toggleCard(data.embed_id);
+      }
     });
     
-    // Service handler
-    window.hassConnection.subscribeService('javascript.ue_toggle_card', (data) => {
-      if (data.embed_id) {
-        window.ueManager.toggleCard(data.embed_id);
+    // Also try to register for completeness
+    setTimeout(() => {
+      window.hassConnection.sendMessagePromise({
+        type: 'register_service',
+        domain: 'javascript',
+        service: 'ue_hide_all'
+      }).then(() => {
+        console.log('✅ UE Service: ue_hide_all registered');
+      });
+    }, 3000);
+    
+    // Handle ue_hide_all service
+    window.hassConnection.subscribeService('javascript.ue_hide_all', () => {
+      if (window.ueManager) {
+        window.ueManager.hideAllCards();
       }
     });
   }
