@@ -1,23 +1,27 @@
 // ============================================================================
-// Universal Embedder for Home Assistant - ENHANCED VERSION
+// Universal Embedder for Home Assistant
 // ============================================================================
 
 class UniversalEmbedder extends HTMLElement {
     // --------------------------------------------------------------------------
-    // Configuration Setup
+    // Configuration Setup - DeepSeek AI optimized validation
     // --------------------------------------------------------------------------
     setConfig(config) {
-      // Both card_id AND dashboard are REQUIRED
-      if (!config.card_id || !config.dashboard) {
-        throw new Error('card_id AND dashboard required - Specify both card ID and target dashboard');
+      // Both embed_id AND dashboard are REQUIRED
+      if (!config.embed_id || !config.dashboard) {
+        throw new Error('Universal Embedder requires both embed_id AND dashboard parameters');
       }
       
-      // Store configuration with DEFAULTS
+      // Validate embed_id format: 001-999 (3 digits)
+      const embedIdRegex = /^\d{3}$/;
+      if (!embedIdRegex.test(config.embed_id.toString())) {
+        throw new Error('embed_id must be a 3-digit number (001-999)');
+      }
+      
+      // Store configuration WITH NEW PARAMETER
       this._config = {
-        show_close: false,      // Close button in header
-        default_visible: false, // Start visible or hidden
-        show_title: true,       // Show card title
-        ...config               // User overrides
+        show_close: false,  // YENİ: Close button in header (default: false)
+        ...config           // User configuration overrides defaults
       };
       
       this._hass = null;
@@ -37,11 +41,11 @@ class UniversalEmbedder extends HTMLElement {
     }
   
     // --------------------------------------------------------------------------
-    // Main Loading Function
+    // Main Loading Function - DeepSeek AI optimized performance
     // --------------------------------------------------------------------------
     async _loadCard() {
-      // Set initial visibility based on default_visible
-      this.style.display = this._config.default_visible ? 'block' : 'none';
+      // Clean container setup
+      this.style.display = 'block';
       this.style.width = '100%';
       this.style.height = '100%';
       this.style.minHeight = '0';
@@ -51,185 +55,149 @@ class UniversalEmbedder extends HTMLElement {
   
       // Loading indicator
       this.innerHTML = `
-        <div style="padding: 10px; text-align: center; color: var(--primary-color); font-style: italic;">
-          Universal Embedder loading... 🚀
+        <div style="padding: 20px; text-align: center; color: var(--primary-color);">
+          <div style="font-style: italic; margin-bottom: 10px;">
+            Universal Embedder initializing...
+          </div>
+          <div style="font-size: 0.9em; color: var(--secondary-text-color);">
+            Searching for card ID: <strong>${this._config.embed_id}</strong>
+          </div>
         </div>
       `;
   
       try {
-        const cardConfig = await this._findCardInDashboard();
+        const cardConfig = await this._findCardByEmbedId();
         await this._createCardContent(cardConfig);
         
-        // Register with global manager if visible by default
-        if (this._config.default_visible && window.ueManager) {
-          window.ueManager.registerCard(this);
-        }
-        
       } catch (error) {
+        // User-friendly error messages
         this.innerHTML = `
           <div style="color: var(--error-color); padding: 20px; text-align: center;">
-            ${error.message}<br>
-            <small>Check card_id and dashboard parameters</small>
+            <div style="font-size: 1.2em; margin-bottom: 10px;">
+              🔍 Embedding Failed
+            </div>
+            <div style="margin-bottom: 15px;">
+              ${error.message}
+            </div>
+            <div style="font-size: 0.9em; color: var(--secondary-text-color);">
+              <strong>Troubleshooting tips:</strong><br>
+              1. Add <code>icon: EMBED#${this._config.embed_id}</code> to your source card<br>
+              2. Verify dashboard name: "${this._config.dashboard}"<br>
+              3. Ensure embed_id is unique (001-999)
+            </div>
           </div>
         `;
       }
     }
   
     // --------------------------------------------------------------------------
-    // Card Discovery Function
+    // Card Discovery Function - DeepSeek AI enhanced search algorithm
     // --------------------------------------------------------------------------
-    async _findCardInDashboard() {
+    async _findCardByEmbedId() {
       const dashboard = this._config.dashboard;
-      const targetId = this._config.card_id;
+      const targetId = this._config.embed_id;
       
-      console.log(`🔍 Universal Embedder: Searching in '${dashboard}' for card '${targetId}'`);
+      console.log(`🔍 Universal Embedder: Searching for card #${targetId} in '${dashboard}'`);
       
       try {
+        // Fetch dashboard configuration
         const lovelaceConfig = await this._hass.connection.sendMessagePromise({
           type: 'lovelace/config',
           url_path: dashboard === 'lovelace' ? null : dashboard
         });
   
-        const cardConfig = this._findCardInViews(lovelaceConfig.views, targetId);
-        if (!cardConfig) {
-          throw new Error(`Card '${targetId}' not found in dashboard '${dashboard}'`);
+        // Search through all views
+        const searchResult = this._searchCardInViews(lovelaceConfig.views, targetId);
+        
+        if (!searchResult.found) {
+          throw new Error(`Card with embed ID #${targetId} not found in dashboard '${dashboard}'`);
         }
   
-        console.log(`✅ Universal Embedder: ✓ Card found in ${dashboard}`);
+        if (searchResult.duplicate) {
+          console.warn(`⚠️ Universal Embedder: Duplicate embed ID #${targetId} found! Using first occurrence.`);
+        }
+  
+        console.log(`✅ Universal Embedder: Successfully located card #${targetId} in ${dashboard}`);
         
         // Optional title handling
-        if (this._config.show_title !== true && cardConfig.title) {
-          delete cardConfig.title;
+        if (this._config.show_title !== true && searchResult.card.title) {
+          delete searchResult.card.title;
         }
         
-        return cardConfig;
+        return searchResult.card;
         
       } catch (err) {
         if (err.message.includes('Not found')) {
           throw new Error(`Dashboard '${dashboard}' not found or inaccessible`);
         }
-        throw new Error(`Error accessing dashboard '${dashboard}': ${err.message}`);
+        throw new Error(`Search error: ${err.message}`);
       }
     }
   
     // --------------------------------------------------------------------------
-    // Recursive Card Search
+    // Recursive Card Search - DeepSeek AI pattern matching algorithm
     // --------------------------------------------------------------------------
-    _findCardInViews(views, cardId) {
-      for (const view of views) {
-        if (view.cards) {
-          for (const card of view.cards) {
-            if (card.id === cardId) return card;
-            if (card.cards) {
-              const found = this._findCardInViews([{ cards: card.cards }], cardId);
-              if (found) return found;
+    _searchCardInViews(views, targetId) {
+      let foundCard = null;
+      let duplicateFound = false;
+      
+      const searchRecursive = (cards, path = '') => {
+        if (!cards) return;
+        
+        for (let i = 0; i < cards.length; i++) {
+          const card = cards[i];
+          const cardPath = path ? `${path}/cards/${i}` : `view_${i}`;
+          
+          // Check icon property for EMBED#001 format
+          if (card && typeof card === 'object') {
+            if (card.icon && typeof card.icon === 'string') {
+              const iconMatch = card.icon.match(/^EMBED#(\d{3})$/i);
+              if (iconMatch && iconMatch[1] === targetId) {
+                if (foundCard) {
+                  duplicateFound = true;
+                } else {
+                  foundCard = card;
+                  console.log(`   Found at path: ${cardPath} (via icon: ${card.icon})`);
+                }
+              }
+            }
+            
+            // Recursive search for nested cards
+            if (card.cards && Array.isArray(card.cards)) {
+              searchRecursive(card.cards, `${cardPath}/cards`);
+            }
+            
+            // Support for vertical/horizontal stacks
+            if (card.type && card.type.includes('stack') && card.cards) {
+              searchRecursive(card.cards, `${cardPath}/stack`);
             }
           }
         }
-      }
-      return null;
+      };
+      
+      // Process all views
+      views.forEach((view, viewIndex) => {
+        if (view.cards) {
+          searchRecursive(view.cards, `view_${viewIndex}`);
+        }
+      });
+      
+      return {
+        found: !!foundCard,
+        card: foundCard,
+        duplicate: duplicateFound
+      };
     }
   
     // --------------------------------------------------------------------------
-    // Header Creation (with optional close button)
-    // --------------------------------------------------------------------------
-    _createHeader(cardConfig) {
-      const header = document.createElement('div');
-      header.className = 'ue-header';
-      header.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 16px 12px 16px;
-        border-bottom: 1px solid var(--divider-color, #e0e0e0);
-        min-height: 48px;
-        box-sizing: border-box;
-      `;
-      
-      // TITLE SECTION
-      const titleContainer = document.createElement('div');
-      titleContainer.style.cssText = `
-        flex: 1;
-        display: flex;
-        align-items: center;
-        min-width: 0;
-      `;
-      
-      if (this._config.show_title !== false && cardConfig.title) {
-        const title = document.createElement('span');
-        title.className = 'ue-title';
-        title.textContent = cardConfig.title;
-        title.style.cssText = `
-          font-weight: 500;
-          font-size: 16px;
-          color: var(--primary-text-color);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        `;
-        titleContainer.appendChild(title);
-      }
-      
-      header.appendChild(titleContainer);
-      
-      // CLOSE BUTTON SECTION (if enabled)
-      if (this._config.show_close) {
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'ue-close-btn';
-        closeBtn.innerHTML = '×';
-        closeBtn.title = 'Close card';
-        closeBtn.setAttribute('aria-label', 'Close card');
-        closeBtn.style.cssText = `
-          background: none;
-          border: none;
-          color: var(--secondary-text-color, #888);
-          font-size: 24px;
-          line-height: 1;
-          cursor: pointer;
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-left: 8px;
-          flex-shrink: 0;
-          transition: all 0.2s ease;
-          outline: none;
-        `;
-        
-        // Hover effects
-        closeBtn.addEventListener('mouseenter', () => {
-          closeBtn.style.backgroundColor = 'var(--primary-color, #03a9f4)';
-          closeBtn.style.color = 'white';
-          closeBtn.style.transform = 'scale(1.1)';
-        });
-        
-        closeBtn.addEventListener('mouseleave', () => {
-          closeBtn.style.backgroundColor = 'transparent';
-          closeBtn.style.color = 'var(--secondary-text-color, #888)';
-          closeBtn.style.transform = 'scale(1)';
-        });
-        
-        // Click event - hide card
-        closeBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.hideCard();
-          console.log(`🔒 Universal Embedder: Card '${this._config.card_id}' closed`);
-        });
-        
-        header.appendChild(closeBtn);
-      }
-      
-      return header;
-    }
-  
-    // --------------------------------------------------------------------------
-    // Card Content Creation
+    // Card Content Creation - DeepSeek AI optimized rendering WITH CLOSE BUTTON
     // --------------------------------------------------------------------------
     async _createCardContent(cardConfig) {
       const helpers = await window.loadCardHelpers();
-      this._contentElement = await helpers.createCardElement(cardConfig);
+      
+      // Create card element
+      const cardConfigCopy = JSON.parse(JSON.stringify(cardConfig));
+      this._contentElement = await helpers.createCardElement(cardConfigCopy);
       this._contentElement.hass = this._hass;
       
       // Clean container setup
@@ -253,11 +221,102 @@ class UniversalEmbedder extends HTMLElement {
       cardWrapper.style.background = 'none';
       cardWrapper.style.boxShadow = 'none';
       
-      // Add header if title or close button is enabled
+      // ============================================================================
+      // YENİ: HEADER WITH CLOSE BUTTON (if show_close: true)
+      // ============================================================================
       if (this._config.show_title || this._config.show_close) {
-        const header = this._createHeader(cardConfig);
+        const header = document.createElement('div');
+        header.className = 'ue-header';
+        header.style.cssText = `
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 16px 12px 16px;
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+          min-height: 48px;
+          box-sizing: border-box;
+        `;
+        
+        // Title section
+        const titleContainer = document.createElement('div');
+        titleContainer.style.cssText = `
+          flex: 1;
+          display: flex;
+          align-items: center;
+          min-width: 0;
+        `;
+        
+        if (this._config.show_title !== false && cardConfig.title) {
+          const title = document.createElement('span');
+          title.className = 'ue-title';
+          title.textContent = cardConfig.title;
+          title.style.cssText = `
+            font-weight: 500;
+            font-size: 16px;
+            color: var(--primary-text-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          `;
+          titleContainer.appendChild(title);
+        }
+        
+        header.appendChild(titleContainer);
+        
+        // Close button (if enabled)
+        if (this._config.show_close) {
+          const closeBtn = document.createElement('button');
+          closeBtn.className = 'ue-close-btn';
+          closeBtn.innerHTML = '×';
+          closeBtn.title = 'Close card';
+          closeBtn.setAttribute('aria-label', 'Close card');
+          closeBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--secondary-text-color, #888);
+            font-size: 24px;
+            line-height: 1;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 8px;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+            outline: none;
+          `;
+          
+          // Hover effects
+          closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.backgroundColor = 'var(--primary-color, #03a9f4)';
+            closeBtn.style.color = 'white';
+            closeBtn.style.transform = 'scale(1.1)';
+          });
+          
+          closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.backgroundColor = 'transparent';
+            closeBtn.style.color = 'var(--secondary-text-color, #888)';
+            closeBtn.style.transform = 'scale(1)';
+          });
+          
+          // Click event - hide card
+          closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.style.display = 'none';
+            console.log(`🔒 Universal Embedder: Card #${this._config.embed_id} closed`);
+          });
+          
+          header.appendChild(closeBtn);
+        }
+        
         cardWrapper.appendChild(header);
       }
+      // ============================================================================
+      // END OF NEW HEADER CODE
+      // ============================================================================
       
       // Content area with smart scrolling
       const cardContent = document.createElement('div');
@@ -268,7 +327,6 @@ class UniversalEmbedder extends HTMLElement {
       cardContent.style.flexDirection = 'column';
       cardContent.style.padding = '0';
       
-      // Scroll handling (existing functionality)
       if (this._config.enable_scroll === false) {
         cardContent.style.overflow = 'visible';
       } else {
@@ -285,35 +343,14 @@ class UniversalEmbedder extends HTMLElement {
       // Finalization
       this._loaded = true;
       
-      console.log(`🎉 Universal Embedder successfully embedded card '${this._config.card_id}'`);
+      console.log(`🎉 Universal Embedder successfully embedded card #${this._config.embed_id}`);
       console.log(`   Dashboard: ${this._config.dashboard}`);
+      console.log(`   Scroll enabled: ${this._config.enable_scroll !== false}`);
       console.log(`   Close button: ${this._config.show_close ? 'ENABLED' : 'disabled'}`);
-      console.log(`   Default visible: ${this._config.default_visible ? 'YES' : 'NO'}`);
     }
   
     // --------------------------------------------------------------------------
-    // Card Visibility Control
-    // --------------------------------------------------------------------------
-    showCard() {
-      this.style.display = 'block';
-      console.log(`👁️ Universal Embedder: Card '${this._config.card_id}' shown`);
-    }
-  
-    hideCard() {
-      this.style.display = 'none';
-      console.log(`🔒 Universal Embedder: Card '${this._config.card_id}' hidden`);
-    }
-  
-    toggleCard() {
-      if (this.style.display === 'none') {
-        this.showCard();
-      } else {
-        this.hideCard();
-      }
-    }
-  
-    // --------------------------------------------------------------------------
-    // Card Size Helper
+    // Card Size Helper - DeepSeek AI optimized sizing
     // --------------------------------------------------------------------------
     getCardSize() {
       return this._config.card_size || 1;
@@ -321,123 +358,8 @@ class UniversalEmbedder extends HTMLElement {
   }
   
   // ============================================================================
-  // Global Card Manager (UE Manager)
+  // Custom Element Registration - SIMPLE & COMPATIBLE
   // ============================================================================
-  
-  window.ueManager = window.ueManager || {
-    _cards: new Map(),
-    
-    // Register a card
-    registerCard(card) {
-      if (card._config && card._config.card_id) {
-        this._cards.set(card._config.card_id, card);
-        console.log(`📝 UE Manager: Registered card '${card._config.card_id}'`);
-      }
-    },
-    
-    // Find a card by ID
-    findCard(cardId) {
-      return this._cards.get(cardId) || 
-             document.querySelector(`universal-embedder[_config*="${cardId}"]`) ||
-             document.querySelector(`universal-embedder[card_id="${cardId}"]`);
-    },
-    
-    // Show a specific card
-    showCard(cardId) {
-      const card = this.findCard(cardId);
-      if (card && card.showCard) {
-        card.showCard();
-        return true;
-      }
-      console.warn(`⚠️ UE Manager: Card '${cardId}' not found`);
-      return false;
-    },
-    
-    // Hide a specific card
-    hideCard(cardId) {
-      const card = this.findCard(cardId);
-      if (card && card.hideCard) {
-        card.hideCard();
-        return true;
-      }
-      return false;
-    },
-    
-    // Toggle a card (show/hide)
-    toggleCard(cardId) {
-      const card = this.findCard(cardId);
-      if (card && card.toggleCard) {
-        card.toggleCard();
-        return true;
-      }
-      return false;
-    },
-    
-    // Hide all Universal Embedder cards
-    hideAllCards() {
-      document.querySelectorAll('universal-embedder').forEach(card => {
-        if (card.hideCard) card.hideCard();
-      });
-      console.log('🔒 UE Manager: All cards hidden');
-    },
-    
-    // Show all Universal Embedder cards
-    showAllCards() {
-      document.querySelectorAll('universal-embedder').forEach(card => {
-        if (card.showCard) card.showCard();
-      });
-    }
-  };
-  
-  // ============================================================================
-  // JavaScript Services for Home Assistant
-  // ============================================================================
-  
-  // Register JavaScript services when Home Assistant connection is available
-  if (window.hassConnection) {
-    window.hassConnection.subscribeEvents(() => {
-      // Service: ue_toggle_card
-      window.hassConnection.sendMessagePromise({
-        type: 'register_service',
-        domain: 'javascript',
-        service: 'ue_toggle_card',
-        schema: {
-          card_id: 'str',
-          dashboard: 'str'
-        }
-      }).then(() => {
-        console.log('✅ JavaScript service registered: ue_toggle_card');
-      });
-      
-      // Service: ue_hide_all
-      window.hassConnection.sendMessagePromise({
-        type: 'register_service',
-        domain: 'javascript',
-        service: 'ue_hide_all'
-      }).then(() => {
-        console.log('✅ JavaScript service registered: ue_hide_all');
-      });
-    }, 'universal_embedder_services');
-    
-    // Service handler for ue_toggle_card
-    window.hassConnection.subscribeService('javascript.ue_toggle_card', (data) => {
-      if (data.card_id) {
-        console.log(`🔄 UE Toggle Card service called for: ${data.card_id}`);
-        window.ueManager.toggleCard(data.card_id);
-      }
-    });
-    
-    // Service handler for ue_hide_all
-    window.hassConnection.subscribeService('javascript.ue_hide_all', () => {
-      console.log('🔄 UE Hide All service called');
-      window.ueManager.hideAllCards();
-    });
-  }
-  
-  // ============================================================================
-  // Custom Element Registration
-  // ============================================================================
-  
   if (!customElements.get('universal-embedder')) {
     customElements.define('universal-embedder', UniversalEmbedder);
     
@@ -447,8 +369,161 @@ class UniversalEmbedder extends HTMLElement {
       type: 'universal-embedder',
       name: 'Universal Embedder',
       preview: true,
-      description: 'Card Embedding with close button and visibility control - Powered by DeepSeek AI 🤖',
+      description: 'Card Embedding - Universal solution',
+    });
+  }
+  
+  // ============================================================================
+  // YENİ: Universal Embedder Manager - Simple Global Control
+  // ============================================================================
+  window.ueManager = window.ueManager || {
+    // Toggle card visibility
+    toggleCard: function(embed_id) {
+      console.log(`🔄 UE Manager: Toggling card #${embed_id}`);
+      
+      // Find all Universal Embedder cards
+      const cards = document.querySelectorAll('universal-embedder');
+      let cardFound = false;
+      
+      cards.forEach(card => {
+        if (card._config && card._config.embed_id === embed_id) {
+          // Toggle display
+          card.style.display = card.style.display === 'none' ? 'block' : 'none';
+          cardFound = true;
+          console.log(`✅ Card #${embed_id} ${card.style.display === 'none' ? 'hidden' : 'shown'}`);
+        }
+      });
+      
+      if (!cardFound) {
+        console.warn(`⚠️ UE Manager: Card #${embed_id} not found`);
+      }
+      
+      return cardFound;
+    },
+    
+    // Show card
+    showCard: function(embed_id) {
+      const cards = document.querySelectorAll('universal-embedder');
+      cards.forEach(card => {
+        if (card._config && card._config.embed_id === embed_id) {
+          card.style.display = 'block';
+          console.log(`👁️ UE Manager: Card #${embed_id} shown`);
+        }
+      });
+    },
+    
+    // Hide card
+    hideCard: function(embed_id) {
+      const cards = document.querySelectorAll('universal-embedder');
+      cards.forEach(card => {
+        if (card._config && card._config.embed_id === embed_id) {
+          card.style.display = 'none';
+          console.log(`🔒 UE Manager: Card #${embed_id} hidden`);
+        }
+      });
+    },
+    
+    // Hide all cards
+    hideAllCards: function() {
+      document.querySelectorAll('universal-embedder').forEach(card => {
+        card.style.display = 'none';
+      });
+      console.log('🔒 UE Manager: All cards hidden');
+    }
+  };
+  
+  // ============================================================================
+  // YENİ: JavaScript Service Registration for Button Control
+  // ============================================================================
+  if (window.hassConnection) {
+    // Register ue_toggle_card service
+    window.hassConnection.sendMessagePromise({
+      type: 'register_service',
+      domain: 'javascript',
+      service: 'ue_toggle_card',
+      schema: {
+        embed_id: 'str'
+      }
+    }).then(() => {
+      console.log('✅ JavaScript service registered: ue_toggle_card');
+    }).catch(err => {
+      console.log('Note: JavaScript service registration might require HA restart');
     });
     
-    console.log('🎉 Universal Embedder Enhanced registered successfully!');
+    // Service handler
+    window.hassConnection.subscribeService('javascript.ue_toggle_card', (data) => {
+      if (data.embed_id) {
+        window.ueManager.toggleCard(data.embed_id);
+      }
+    });
   }
+  
+  // ============================================================================
+  // Helper Functions (Optional - for future enhancements)
+  // ============================================================================
+  window.embedderHelpers = window.embedderHelpers || {
+    // Find unused embed IDs
+    findUnusedId: async function(hass, dashboard = 'lovelace') {
+      console.log('Universal Embedder: Analyzing available embed IDs...');
+      
+      try {
+        const config = await hass.connection.sendMessagePromise({
+          type: 'lovelace/config',
+          url_path: dashboard === 'lovelace' ? null : dashboard
+        });
+        
+        const usedIds = new Set();
+        const iconPattern = /^EMBED#(\d{3})$/gi;
+        
+        const collectIds = (cards) => {
+          if (!cards) return;
+          
+          cards.forEach(card => {
+            if (card && typeof card === 'object') {
+              if (card.icon) {
+                const match = card.icon.match(iconPattern);
+                if (match) usedIds.add(match[1]);
+              }
+              
+              if (card.cards) {
+                collectIds(card.cards);
+              }
+            }
+          });
+        };
+        
+        config.views.forEach(view => collectIds(view.cards));
+        
+        // Find first unused ID
+        for (let i = 1; i <= 999; i++) {
+          const id = i.toString().padStart(3, '0');
+          if (!usedIds.has(id)) {
+            console.log(`✅ Available embed ID: ${id}`);
+            return id;
+          }
+        }
+        
+        console.warn('⚠️ All embed IDs (001-999) are in use!');
+        return null;
+        
+      } catch (error) {
+        console.error('ID search failed:', error);
+        return '001';
+      }
+    },
+    
+    // Validate embed ID format
+    validateEmbedId: function(id) {
+      const regex = /^\d{3}$/;
+      if (!regex.test(id)) {
+        throw new Error('embed_id must be 3 digits (001-999)');
+      }
+      
+      const num = parseInt(id, 10);
+      if (num < 1 || num > 999) {
+        throw new Error('embed_id must be between 001 and 999');
+      }
+      
+      return true;
+    }
+  };
