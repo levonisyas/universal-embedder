@@ -28,9 +28,9 @@ Embed cards across different dashboards with Visual Editor compatibility.
 2. Place file in your `/config/www/community/universal-embedder/` directory
 3. Add as Lovelace resource:
 ```yaml
-   resources:
-     - url: /local/community/universal-embedder/universal-embedder.js
-       type: dashboard
+resources:
+  - url: /local/community/universal-embedder/universal-embedder.js
+    type: module
 ```
 ## Usage
 Step 1: Add embed ID to source card
@@ -54,45 +54,45 @@ show_close: true         # OPTIONAL: Show close (X) button in header (default: f
 embedder_title: ""       # OPTIONAL: Custom title for embedder header, use string for title (default: empty)
 default_visible: true    # OPTIONAL: Initial visibility on load (default: true)
 ```
-# 🔍 GELİŞMİŞ OPSİYONEL PARAMETRELER:
+# 🔍 ADVANCED OPTIONAL PARAMETERS:
 ```yaml
 styles:
   card:
-    # RENK ve ARKA PLAN
+    # COLOR AND BACKGROUND
     - background: red
     - background: var(--primary-color)
-    -background: 'var(--card-background-color)'
+    - background: 'var(--card-background-color)'
     - color: white
     - opacity: 0.8
     
-    # KENARLIK ve KÖŞE
+    # BORDER AND CORNERS
     - border-radius: 10px
     - border: 2px solid blue
     - border-color: var(--accent-color)
     
-    # BOYUT ve ARA BOŞLUK
+    # SIZE AND SPACING
     - padding: 10px
     - margin: 5px
     - width: 100px
     - height: 50px
     
-    # GÖLGE
+    # SHADOWS
     - box-shadow: 0 2px 5px rgba(0,0,0,0.1)
     - '--ha-card-box-shadow': '0 2px 5px rgba(0,0,0,0.1)'
     
-    # Z-INDEX (SINIRLI!)
-    - z-index: 10      # ⬅️ ÇALIŞIR AMA YEREL SADECE KART İÇİNDE
+    # Z-INDEX (LIMITED!)
+    - z-index: 10      # ⬅️ WORKS BUT LOCAL TO CARD ONLY
 ```
 ## Test
 ```yaml
-test_mode: false                 # Debug modu (console'da detaylı log)
+test_mode: false  # Debug mode (detailed logs in console)
 ```
-## Card Mod uyumluğu
+## Card Mod compatibility
 ```yaml
 card_mod:
-  class: EMBED-001               #view içinde çok sayıda universal-embedder kullanmak için
+  class: EMBED-001  # For multiple universal-embedder instances in one view
   style: |
-    .EMBED-001 {                 #view içinde çok sayıda universal-embedder kullanmak için
+    .EMBED-001 {
       position: absolute !important;
       top: 30% !important;
       right: 5% !important;
@@ -101,9 +101,9 @@ card_mod:
       z-index: 1 !important;
     }
 ```
-## Button menü olarak kullanımı
+## Button menu usage
 ```yaml
-#scripts.yaml
+# scripts.yaml
 embedder_open:
   alias: "Open Embedder"
   variables:
@@ -116,18 +116,18 @@ embedder_open:
   mode: single
 ```
 ```yaml
-#configuration.yaml
+# configuration.yaml
 input_select:
   active_embedder:
     name: "Active Embedder"
     options: ["none", "embed_001", "embed_002", "embed_003"]
-    initial: "none" #Yüklenirken Açık olacak kartı belirler
+    initial: "none" # Determines which card is open on load
 ```
 ```yaml
-# 1. BUTON MENÜSÜ - HORIZONTAL STACK
+# 1. BUTTON MENU - HORIZONTAL STACK
 type: horizontal-stack
 cards:
-  # LIGHTS BUTON
+  # LIGHTS BUTTON
   - type: button
     name: "Lights"
     icon: mdi:lightbulb
@@ -139,7 +139,7 @@ cards:
       data:
         embed_id: "embed_001"
 
-  # HOME BUTON (TÜMÜNÜ KAPAT)
+  # HOME BUTTON (CLOSE ALL)
   - type: button
     name: "Home"
     icon: mdi:home
@@ -154,15 +154,14 @@ cards:
 card_mod:
   style: |
     :host {
-      position: absolute !important;   /* parent grid'e göre sabit */
+      position: absolute !important;
       bottom: 0% !important;
       right: 20% !important;
       width: 500px !important;
-      #z-index: 1 !important;           /* edit menüsünü kapatmaz */
     }
 ```
 ```yaml 
-# 2. LIGHTS KARTI - CONDITIONAL
+# 2. LIGHTS CARD - CONDITIONAL
 type: conditional
 conditions:
   - entity: input_select.active_embedder
@@ -170,14 +169,14 @@ conditions:
 card:
   type: custom:universal-embedder
   embed_id: "001"
-  dashboard: "dashboard-test"  # ⬅️ KENDİ DASHBOARD'UNU YAZ
+  dashboard: "dashboard-test"  # ⬅️ USE YOUR DASHBOARD NAME
   embedder_title: "Lights"
-  show_close: false    # ⬅️ MENÜ KARTLARINDA X YOK KULANNAM!
+  show_close: false    # ⬅️ NO X BUTTON FOR MENU CARDS!
   default_visible: true
 card_mod:
-  class: EMBED-001               #view içinde çok sayıda universal-embedder kullanmak için
+  class: EMBED-001
   style: |
-    .EMBED-001 {                 #view içinde çok sayıda universal-embedder kullanmak için
+    .EMBED-001 {
       position: absolute !important;
       top: 30% !important;
       right: 5% !important;
@@ -187,31 +186,32 @@ card_mod:
     }
 ```
 ```yaml 
-#KAYNAK KARTLAR (dashboard-test dashboard'unda)
-# KART 1: Lights (EMBED#001)
+# SOURCE CARDS (in dashboard-test dashboard)
+# CARD 1: Lights (EMBED#001)
 type: entities
-icon: EMBED#001  # ⬅️ BU ÇOK ÖNEMLİ!
+icon: EMBED#001  # ⬅️ THIS IS CRITICAL!
 title: Lights Control
 entities:
   - light.living_room
   - light.kitchen
 ``` 
-## 🚨 HATA DURUMLARI:
- - embed_id yoksa: "Universal Embedder requires both embed_id AND dashboard parameters"
- - dashboard yoksa: "Dashboard 'dashboard_name' not found or inaccessible"
- - kart bulunamazsa: "Card with embed ID #XXX not found in dashboard 'dashboard_name'"
- - embed_id format hatası: "embed_id must be a 3-digit number (001-999)"
+## 🚨 ERROR CONDITIONS:
+No embed_id: "Universal Embedder requires both embed_id AND dashboard parameters"
+Dashboard not found: "Dashboard 'dashboard_name' not found or inaccessible"
+Card not found: "Card with embed ID #XXX not found in dashboard 'dashboard_name'"
+Invalid embed_id format: "embed_id must be a 3-digit number (001-999)"
 
-## ✅ BAŞARILI MESAJ (console):
- "Universal Embedder successfully embedded card #XXX"
- "Dashboard: dashboard_name"
- "Scroll enabled: true/false"
+## ✅ SUCCESS MESSAGE (console):
+"Universal Embedder successfully embedded card #XXX"
+"Dashboard: dashboard_name"
+"Scroll enabled: true/false"
 
 ## 🛠 TROUBLESHOOTING:
- 1. Kaynak karta icon ekleyin: icon: 'EMBED#001'
- 2. Dashboard adını doğru yazın
- 3. embed_id benzersiz olsun (001-999)
- 4. Ctrl+F5 + Home Assistant restart
+Add icon to source card: icon: 'EMBED#001'
+Correctly write dashboard name
+Make embed_id unique (001-999)
+Ctrl+F5 + Home Assistant restart
+
 ## ❌ "Card not found" error
 1. Verify source card has `icon: EMBED#001` (exact format)
 2. Check dashboard name spelling (case-sensitive)
