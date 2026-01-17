@@ -251,5 +251,6 @@ This project was developed with a focus on:
 - Simple, intuitive configuration
 - Maximum compatibility with existing setups
 - Performance optimization through AI-assisted algorithms
+  
 *"From blueprints to code - building better solutions for smart homes."*
 
