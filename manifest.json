@@ -1,0 +1,6 @@
+{
+  "name": "Universal Embedder",
+  "content_in_root": false,
+  "filename": "universal-embedder.js",
+  "render_mode": "ts"
+}
